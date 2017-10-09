@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "Type.h"
+#include "Utils.h"
 #include "erandom.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +68,67 @@ static void InitScene()
 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+static void ProcessPatch( Vec *pColor,
+                          const int startX, const int startY, const int sizeW, const int sizeH,
+                          const int imageW, const int imageH, const int samplesCount,
+                          const Ray& camera, const Vec& cx, const Vec& cy  )
+{
+    for( int y = 0; y < sizeH; ++y )
+    {
+        const int worldY = startY + y;
+        const int y3 = worldY * worldY * worldY;
+        const unsigned short y3us = static_cast< unsigned short >( y3 );    
+        unsigned short Xi[3]={ 0, 0, y3us };
+        
+        for( int x = 0; x < sizeW; ++x )
+        {
+            const int worldX = startX + x;
+            const int offset = ( imageH - worldY - 1 ) * imageW + worldX;
+            
+            for( int sy = 0; sy<2; ++sy )         // 2x2 subpixel rows
+            {
+                Vec r;
+                for( int sx = 0; sx < 2; ++sx )       // 2x2 subpixel cols
+                {
+                    for( int s = 0; s < samplesCount; ++s )
+                    {
+                        double r1 = 2.0 * erand48( Xi );
+                        double r2 = 2.0 * erand48( Xi );
+                        double dx = ( r1 < 1.0 ) ? sqrt( r1 ) - 1.0 : 1.0 - sqrt( 2.0 - r1 );
+                        double dy = ( r2 < 1.0 ) ? sqrt( r2 ) - 1.0 : 1.0 - sqrt( 2.0 - r2 );
+                        Vec d = cx * ( ( ( sx + 0.5 + dx ) / 2.0 + worldX ) / imageW - 0.5 ) + 
+                                cy * ( ( ( sy + 0.5 + dy ) / 2.0 + worldY ) / imageH - 0.5 ) + camera.d;
+                        r = r + radiance( Ray( camera.o + d * 140.0, d.norm() ), 0.0, Xi ) * ( 1.0 / samplesCount );
+                    }
+                    pColor[offset] = pColor[offset] + Vec( clamp( r.x ), clamp( r.y ), clamp( r.z ) ) * 0.25;
+                }
+            }
+        }
+    }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+static void ProcessImage( Vec *pColor,
+                          const int imageW, const int imageH, const int samplesCount,
+                          const Ray& camera, const Vec& cx, const Vec& cy  )
+{
+    // Divide image into several pathces
+    const int PATCH_SIZE = 8;
+    const int PATCH_SIZE_SRQ = PATCH_SIZE * PATCH_SIZE;
+    const int patchCount = imageW * imageH / PATCH_SIZE_SRQ;
+    
+    int pos = 0;
+    for( int y = 0; y < imageH; y += PATCH_SIZE )
+        for( int x = 0; x < imageW; x += PATCH_SIZE )
+        {
+            ProcessPatch( pColor, x, y, PATCH_SIZE, PATCH_SIZE,
+                          imageW, imageH, samplesCount, camera, cx, cy  );
+                          
+            ++pos;
+            const float progress = 100.0f * static_cast< float >( pos ) / static_cast< float >( patchCount );
+            fprintf( stderr,"\rRendering (%d spp) %5.2f%%", samplesCount, progress );
+        }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 static void ProcessScene( Vec *pColor,
                           const int sizeW, const int sizeH, const int samplesCount,
                           const Ray& camera, const Vec& cx, const Vec& cy  )
@@ -125,7 +187,8 @@ int main()
     const int samps = 128;
     
     const int coreNumber = std::thread::hardware_concurrency();
-    fprintf( stderr,"/nCore count: %d/n", coreNumber );
+    fprintf( stderr,"\nCore count: %d\n", coreNumber );
+    //printf( "/nCore count: %d/n", coreNumber );
     
     InitScene();
     
@@ -134,8 +197,27 @@ int main()
     const Vec cy = ( cx % cam.d ).norm() * 0.5135;
     Vec *pColor = (Vec*)malloc(sizeof(Vec) * w * h );
     
-    ProcessScene( pColor, w, h, samps, cam, cx, cy );
-  
+    fprintf( stderr,"Processing started\n" );;
+    const uint64_t timeA = GetProcessTime();
+    //ProcessScene( pColor, w, h, samps, cam, cx, cy );
+    ProcessImage( pColor, w, h, samps, cam, cx, cy );
+    
+    const uint64_t timeB = GetProcessTime();
     SaveImage( w, h, pColor );
+    
+    // Final time calculation
+    const uint64_t timeC = GetProcessTime();
+    const uint64_t timeProcess = timeB - timeA;
+    const uint64_t timeSave = timeC - timeB;
+    const int timeProcessMS = static_cast< int >( timeProcess ); 
+    const int timeSaveMS = static_cast< int >( timeSave );
+    
+    // Log
+    fprintf( stderr, "\nCompleted\n" );
+    fprintf( stderr, "Process time: %d ms\n", timeProcessMS );
+    fprintf( stderr, "Save time: %d ms\n", timeSaveMS );
+    //printf( "Process time: %d ms /n", timeProcessMS );
+    //printf( "Save time: %d ms /n", timeSaveMS );
+    
     return 0;
 }
