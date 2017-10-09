@@ -3,6 +3,7 @@
 #include <stdio.h>  //        Remove "-fopenmp" for g++ version < 4.2
 #include <thread>
 
+#include "ThreadPool.h"
 #include "Type.h"
 #include "Utils.h"
 #include "erandom.h"
@@ -196,6 +197,9 @@ int main()
     const Vec cx = Vec( w * 0.5135 / h );
     const Vec cy = ( cx % cam.d ).norm() * 0.5135;
     Vec *pColor = (Vec*)malloc(sizeof(Vec) * w * h );
+    
+    const size_t logicThreadCount = coreNumber * 2;
+    CThreadPool threadPool( logicThreadCount );
     
     fprintf( stderr,"Processing started\n" );;
     const uint64_t timeA = GetProcessTime();
