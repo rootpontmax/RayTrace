@@ -52,6 +52,23 @@ struct Sphere
   }
 };
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+struct SThreadInfo
+{
+    const Ray  *pCamera;
+    const Vec  *pCx;
+    const Vec  *pCy;
+    Vec        *pColor;
+    int         startX;
+    int         startY;
+    int         sizeW;
+    int         sizeH;
+    int         imageW;
+    int         imageH;
+    int         samplesCount;
+    int         watchDog;
+    int         pos;
+};
+////////////////////////////////////////////////////////////////////////////////////////////////////
 inline double clamp(double x)
 {
     return x < 0 ? 0 : x > 1.0 ? 1.0 : x;

@@ -5,6 +5,9 @@
 #include <cassert>
 #include <memory>
 
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 uint64_t GetProcessTime()
 {
@@ -15,5 +18,17 @@ uint64_t GetProcessTime()
         return ms;
     }
     return 0;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+uint64_t GetRealTimeNano()
+{
+    static mach_timebase_info_data_t sTimebaseInfo;
+    
+    if( 0 == sTimebaseInfo.denom )
+        mach_timebase_info( &sTimebaseInfo );
+        
+    const uint64_t thisTime = mach_absolute_time();
+    const uint64_t timeNano = thisTime * sTimebaseInfo.numer / sTimebaseInfo.denom;
+    return timeNano;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
