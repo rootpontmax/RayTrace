@@ -12,12 +12,10 @@
 static const int SCENE_OBJECT_COUNT = 9;
 static Sphere spheres[SCENE_OBJECT_COUNT];
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-Vec radiance(const Ray &r, int depth, int watchDog, unsigned short *Xi)
+Vec radiance(const Ray &r, int depth, const int watchDog, unsigned short *Xi)
 {
-    // CRAP
     if( watchDog <= 0 )
         return Vec();
-    // end of CRAP
         
     double t;                               // distance to intersection
     int id = 0;                               // id of intersected object
@@ -28,10 +26,12 @@ Vec radiance(const Ray &r, int depth, int watchDog, unsigned short *Xi)
     Vec x=r.o+r.d*t, n=(x-obj.p).norm(), nl=n.dot(r.d)<0?n:n*-1, f=obj.c;
     double p = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z; // max refl
     if( ++depth > 5 )
+    {
         if( erand48( Xi ) < p )
             f=f*(1/p);
         else
             return obj.e; //R.R.
+    }
 
     if( obj.refl == DIFF ) // Ideal DIFFUSE reflection
     {                  
@@ -74,9 +74,10 @@ static void InitScene()
 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-static void ProcessPatch( const SThreadInfo& info )
+static void ProcessPatch( const size_t threadID, const SThreadInfo& info )
 {
-    printf( "Patch %d started...", info.pos );
+    //printf( "Patch %d started...", info.pos );
+    //printf( "Patch %d started by thread %d...\n", info.pos, (int)threadID );
     
     const Ray& camera = *info.pCamera;
     const Vec& cx = *info.pCx;
@@ -115,7 +116,7 @@ static void ProcessPatch( const SThreadInfo& info )
         }
     }
     
-    printf( "Patch %d ended\n", info.pos );
+    //printf( "Patch %d ended\n", info.pos );
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 static void ProcessImage( Vec *pColor,
@@ -147,7 +148,9 @@ static void ProcessImage( Vec *pColor,
             info.watchDog = watchDog;
             info.pos = pos;
             
-            ProcessPatch( info );
+            
+            const int fakeID = 0;
+            ProcessPatch( fakeID, info );
                           
             ++pos;
             const float progress = 100.0f * static_cast< float >( pos ) / static_cast< float >( patchCount );
@@ -205,7 +208,6 @@ static void ProcessImageMultithread( Vec *pColor,
             //fprintf( stderr,"\rRendering (%d spp) %5.2f%%", samplesCount, progress );
         }        
     pool.WaitAllDone();
-    //pool.WaitAllDoneCRAP();
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 static void ProcessScene( Vec *pColor,
@@ -263,7 +265,7 @@ int main()
 {
     const int w = 128;
     const int h = 128;
-    const int samps = 512;
+    const int samps = 128;
     const int watchDog = 256;
     
     const int coreNumber = std::thread::hardware_concurrency();
